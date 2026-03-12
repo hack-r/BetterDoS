@@ -88,9 +88,13 @@ class BetterDoSGUI:
                          borderwidth=0, padding=(12, 6))
         style.map("TButton", background=[("active", ACCENT)], foreground=[("active", BG)])
         style.configure("Accent.TButton", background=ACCENT, foreground=BG)
-        style.map("Accent.TButton", background=[("active", GREEN)], foreground=[("active", BG)])
+        style.map("Accent.TButton",
+                  background=[("disabled", SURFACE), ("active", GREEN)],
+                  foreground=[("disabled", FG_DIM), ("active", BG)])
         style.configure("Stop.TButton", background=RED, foreground=BG)
-        style.map("Stop.TButton", background=[("active", "#e06c75")], foreground=[("active", BG)])
+        style.map("Stop.TButton",
+                  background=[("disabled", SURFACE), ("active", "#e06c75")],
+                  foreground=[("disabled", FG_DIM), ("active", BG)])
         style.configure("TCombobox", fieldbackground=BG_INPUT, background=SURFACE,
                          foreground=FG, selectbackground=ACCENT, selectforeground=BG)
         style.configure("TEntry", fieldbackground=BG_INPUT, foreground=FG, insertcolor=FG)
