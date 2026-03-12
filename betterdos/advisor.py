@@ -13,6 +13,7 @@ from yarl import URL
 
 from betterdos.core import (BYTES_SEND, REQUESTS_SENT, Methods, ROOT_DIR,
                             Tools, bcolors, exit, logger, RUN_ID)
+from betterdos.console import CloudflareScanner, _is_cloudflare_ip
 from betterdos.layer4 import Layer4
 from betterdos.layer7 import HttpFlood
 from betterdos.output import print_advise, print_auto_results
@@ -91,9 +92,16 @@ class MethodAdvisor:
             reasons.append("HTTP(S) service: session-based methods")
 
         # --- Header-driven specialization ---
+        cf_detected = False
         if "cf-ray" in headers or "cloudflare" in server_hdr:
+            cf_detected = True
+        if resolved_ip != "unresolved" and _is_cloudflare_ip(resolved_ip):
+            cf_detected = True
+
+        if cf_detected:
             candidates.extend(["CFB", "CFBUAM"])
-            reasons.append("Cloudflare detected (cf-ray / server header)")
+            reasons.append("Cloudflare detected (cf-ray / server header / IP range)")
+            reasons.append("TIP: Run CFIP tool to discover origin IP behind Cloudflare")
 
         if "ddos-guard" in server_hdr or "ddg" in headers.get("set-cookie", "").lower():
             candidates.append("DGB")

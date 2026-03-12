@@ -8,10 +8,9 @@ from time import sleep
 from typing import Dict, List, Set, Tuple
 
 from dns import resolver
-from dns.rdatatype import RdataType
 from icmplib import ping
 from psutil import cpu_percent, net_io_counters, process_iter, virtual_memory
-from requests import Session, get
+from requests import get
 
 from betterdos.core import Tools, bcolors, exit, logger
 
@@ -32,13 +31,15 @@ class ToolsConsole:
 
         while 1:
             cmd = input(cons + " ").strip()
-            if not cmd: continue
+            if not cmd:
+                continue
+            args = ""
             if " " in cmd:
                 cmd, args = cmd.split(" ", 1)
 
             cmd = cmd.upper()
             if cmd == "HELP":
-                print("Tools:" + ", ".join(ToolsConsole.METHODS))
+                print("Tools: " + ", ".join(sorted(ToolsConsole.METHODS)))
                 print("Commands: HELP, CLEAR, BACK, EXIT")
                 continue
 
@@ -80,15 +81,18 @@ class ToolsConsole:
             if cmd == "CFIP":
                 while True:
                     domain = input(f'{cons}give-me-domain# ')
-                    if not domain: continue
-                    if domain.upper() == "BACK": break
+                    if not domain:
+                        continue
+                    if domain.upper() == "BACK":
+                        break
                     if domain.upper() == "CLEAR":
                         print("\033c")
                         continue
                     if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
                         exit(-1)
                     domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain: domain = domain.split("/")[0]
+                    if "/" in domain:
+                        domain = domain.split("/")[0]
                     logger.info("Scanning for origin IP behind Cloudflare ...")
                     results = CloudflareScanner.find_origin(domain)
                     CloudflareScanner.print_results(domain, results)
@@ -96,15 +100,18 @@ class ToolsConsole:
             if cmd == "DNS":
                 while True:
                     domain = input(f'{cons}give-me-domain# ')
-                    if not domain: continue
-                    if domain.upper() == "BACK": break
+                    if not domain:
+                        continue
+                    if domain.upper() == "BACK":
+                        break
                     if domain.upper() == "CLEAR":
                         print("\033c")
                         continue
                     if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
                         exit(-1)
                     domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain: domain = domain.split("/")[0]
+                    if "/" in domain:
+                        domain = domain.split("/")[0]
                     logger.info("Querying DNS records ...")
                     ToolsConsole.dns_lookup(domain)
 
@@ -112,14 +119,17 @@ class ToolsConsole:
                 while True:
                     with suppress(Exception):
                         domain = input(f'{cons}give-me-ipaddress# ')
-                        if not domain: continue
-                        if domain.upper() == "BACK": break
+                        if not domain:
+                            continue
+                        if domain.upper() == "BACK":
+                            break
                         if domain.upper() == "CLEAR":
                             print("\033c")
                             continue
                         if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
                             exit(-1)
-                        if "/" not in domain: continue
+                        if "/" not in domain:
+                            continue
                         logger.info("please wait ...")
                         with get(domain, timeout=20) as r:
                             logger.info(('status_code: %d\n'
@@ -130,15 +140,18 @@ class ToolsConsole:
             if cmd == "INFO":
                 while True:
                     domain = input(f'{cons}give-me-ipaddress# ')
-                    if not domain: continue
-                    if domain.upper() == "BACK": break
+                    if not domain:
+                        continue
+                    if domain.upper() == "BACK":
+                        break
                     if domain.upper() == "CLEAR":
                         print("\033c")
                         continue
                     if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
                         exit(-1)
                     domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain: domain = domain.split("/")[0]
+                    if "/" in domain:
+                        domain = domain.split("/")[0]
                     print('please wait ...', end="\r")
                     info = ToolsConsole.info(domain)
                     if not info["success"]:
@@ -155,15 +168,18 @@ class ToolsConsole:
             if cmd == "TSSRV":
                 while True:
                     domain = input(f'{cons}give-me-domain# ')
-                    if not domain: continue
-                    if domain.upper() == "BACK": break
+                    if not domain:
+                        continue
+                    if domain.upper() == "BACK":
+                        break
                     if domain.upper() == "CLEAR":
                         print("\033c")
                         continue
                     if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
                         exit(-1)
                     domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain: domain = domain.split("/")[0]
+                    if "/" in domain:
+                        domain = domain.split("/")[0]
                     print('please wait ...', end="\r")
                     info = ToolsConsole.ts_srv(domain)
                     logger.info(f"TCP: {(info['_tsdns._tcp.'])}\n")
@@ -172,14 +188,17 @@ class ToolsConsole:
             if cmd == "PING":
                 while True:
                     domain = input(f'{cons}give-me-ipaddress# ')
-                    if not domain: continue
-                    if domain.upper() == "BACK": break
+                    if not domain:
+                        continue
+                    if domain.upper() == "BACK":
+                        break
                     if domain.upper() == "CLEAR":
                         print("\033c")
                     if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
                         exit(-1)
                     domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain: domain = domain.split("/")[0]
+                    if "/" in domain:
+                        domain = domain.split("/")[0]
                     logger.info("please wait ...")
                     r = ping(domain, count=5, interval=0.2)
                     logger.info(('Address: %s\n'
@@ -302,7 +321,7 @@ class CloudflareScanner:
                 ip = rdata.to_text()
                 results["apex"].append((domain, ip))
 
-        # 2. MX records → resolve to IPs
+        # 2. MX records -> resolve to IPs
         with suppress(Exception):
             for rdata in res.resolve(domain, "MX"):
                 mx_host = str(rdata.exchange).rstrip(".")
@@ -310,7 +329,7 @@ class CloudflareScanner:
                     mx_ip = gethostbyname(mx_host)
                     results["mx"].append((mx_host, mx_ip))
 
-        # 3. SPF / TXT records → extract ip4: and include: directives
+        # 3. SPF / TXT records -> extract ip4: and include: directives
         with suppress(Exception):
             for rdata in res.resolve(domain, "TXT"):
                 txt = rdata.to_text().strip('"')
@@ -318,7 +337,6 @@ class CloudflareScanner:
                     for token in txt.split():
                         if token.lower().startswith("ip4:"):
                             ip_part = token[4:]
-                            # Could be a CIDR or single IP
                             if "/" in ip_part:
                                 results["spf"].append(("SPF ip4 range", ip_part))
                             else:
@@ -350,7 +368,7 @@ class CloudflareScanner:
 
     @staticmethod
     def is_behind_cloudflare(domain: str) -> bool:
-        """Quick check: does the domain's A record resolve to a CF IP?"""
+        """Quick check: does the domain A record resolve to a CF IP?"""
         with suppress(Exception):
             ip = gethostbyname(domain)
             return _is_cloudflare_ip(ip)
@@ -358,19 +376,31 @@ class CloudflareScanner:
 
     @staticmethod
     def print_results(domain: str, results: Dict[str, List[Tuple[str, str]]]):
-        \"\"\"Pretty-print CFIP scan results.\"\"\"\n        C, B, R, Y, G, F = (bcolors.OKCYAN, bcolors.OKBLUE, bcolors.RESET,
-                             bcolors.WARNING, bcolors.OKGREEN, bcolors.FAIL)
+        """Pretty-print CFIP scan results."""
+        C = bcolors.OKCYAN
+        B = bcolors.OKBLUE
+        R = bcolors.RESET
+        Y = bcolors.WARNING
+        G = bcolors.OKGREEN
+        F = bcolors.FAIL
         U = bcolors.BOLD
 
         apex_ips = [ip for _, ip in results["apex"]]
         on_cf = any(_is_cloudflare_ip(ip) for ip in apex_ips)
 
-        print(f\"\"\"
-{U}┌─── CFIP Results ─────────────────────────────────┐{R}
-{Y}│{R} Domain     : {B}{domain}{R}
-{Y}│{R} Apex IPs   : {C}{', '.join(apex_ips) or 'none'}{R}
-{Y}│{R} Cloudflare : {(F + 'YES' if on_cf else G + 'NO') + R}
-{Y}│{R}\"\"\")
+        cf_label = (F + "YES" + R) if on_cf else (G + "NO" + R)
+        apex_str = (C + ", ".join(apex_ips) + R) if apex_ips else "none"
+
+        print()
+        print(U + "\u250c\u2500\u2500\u2500 CFIP Results "
+              "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+              "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+              "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
+              "\u2500\u2500\u2500\u2500\u2510" + R)
+        print(f"{Y}\u2502{R} Domain     : {B}{domain}{R}")
+        print(f"{Y}\u2502{R} Apex IPs   : {apex_str}")
+        print(f"{Y}\u2502{R} Cloudflare : {cf_label}")
+        print(f"{Y}\u2502{R}")
 
         # Non-CF IPs found
         origin_candidates: Set[str] = set()
@@ -380,23 +410,26 @@ class CloudflareScanner:
                                 ("spf", "SPF / TXT Records")]:
             entries = results[category]
             if entries:
-                print(f\"{Y}│{R} {U}{label}:{R}\")
+                print(f"{Y}\u2502{R} {U}{label}:{R}")
                 for source, ip in entries:
                     is_cf = _is_cloudflare_ip(ip)
-                    tag = f\"{F}[CF]{R}\" if is_cf else f\"{G}[ORIGIN?]{R}\"
-                    print(f\"{Y}│{R}   {C}{source:<40}{R} → {B}{ip:<16}{R} {tag}\")
+                    if is_cf:
+                        tag = F + "[CF]" + R
+                    else:
+                        tag = G + "[ORIGIN?]" + R
+                    print(f"{Y}\u2502{R}   {C}{source:<40}{R} \u2192 {B}{ip:<16}{R} {tag}")
                     if not is_cf:
                         origin_candidates.add(ip)
-                print(f\"{Y}│{R}\")
+                print(f"{Y}\u2502{R}")
 
         if origin_candidates:
-            print(f\"{Y}│{R} {U}{G}Candidate origin IPs:{R}\")
+            print(f"{Y}\u2502{R} {U}{G}Candidate origin IPs:{R}")
             for ip in sorted(origin_candidates):
-                print(f\"{Y}│{R}   {G}{ip}{R}\")
+                print(f"{Y}\u2502{R}   {G}{ip}{R}")
         elif on_cf:
-            print(f\"{Y}│{R} {F}No non-Cloudflare IPs found via enumeration.{R}\")
-            print(f\"{Y}│{R} {Y}Try historical DNS databases or certificate transparency logs.{R}\")
+            print(f"{Y}\u2502{R} {F}No non-Cloudflare IPs found via enumeration.{R}")
+            print(f"{Y}\u2502{R} {Y}Try historical DNS databases or certificate transparency logs.{R}")
         else:
-            print(f\"{Y}│{R} {G}Domain does not appear to be behind Cloudflare.{R}\")
+            print(f"{Y}\u2502{R} {G}Domain does not appear to be behind Cloudflare.{R}")
 
-        print(f\"{U}└───────────────────────────────────────────────────┘{R}\")
+        print(U + "\u2514" + "\u2500" * 51 + "\u2518" + R)
