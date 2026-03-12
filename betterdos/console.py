@@ -255,16 +255,16 @@ def _is_cloudflare_ip(ip_str: str) -> bool:
 
 
 class CloudflareScanner:
-    \"\"\"Discover origin IPs behind Cloudflare via DNS enumeration.
+    """Discover origin IPs behind Cloudflare via DNS enumeration.
 
     Techniques:
-    1. Direct A/AAAA resolution — check if the apex is even on CF.
-    2. Common subdomain enumeration — many subdomains (mail, ftp, cpanel,
+    1. Direct A/AAAA resolution - check if the apex is even on CF.
+    2. Common subdomain enumeration - many subdomains (mail, ftp, cpanel,
        direct, etc.) are not proxied through CF and expose the origin.
-    3. MX record inspection — mail servers often point at the origin.
-    4. SPF/TXT record parsing — SPF includes may leak origin IPs.
-    5. NS record check — some self-hosted NS reveal origin.
-    \"\"\"
+    3. MX record inspection - mail servers often point at the origin.
+    4. SPF/TXT record parsing - SPF includes may leak origin IPs.
+    5. NS record check - some self-hosted NS reveal origin.
+    """
 
     # Subdomains commonly left outside of CF proxy
     PROBE_SUBDOMAINS = [

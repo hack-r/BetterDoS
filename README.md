@@ -2,10 +2,7 @@
 
 **Network resilience testing framework — 47 attack methods, 12 commands.**
 
-> Research fork of [MatrixTM/MHDDoS](https://github.com/MatrixTM/MHDDoS).
-> Refactored into a modular architecture with intelligent method selection and pretty output.
-
----
+All the methods and tools of MHDDoS, optimized, augmented, with corrected counts, Cloudflare detection and evasion, and improved docs/UI.
 
 ## What's New
 
