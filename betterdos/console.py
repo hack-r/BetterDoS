@@ -218,3 +218,184 @@ class ToolsConsole:
         with suppress(Exception), get(f"https://ipwhois.app/json/{domain}/") as s:
             return s.json()
         return {"success": False}
+
+    @staticmethod
+    def dns_lookup(domain):
+        """Query and display common DNS record types for a domain."""
+        C, R, Y, B = bcolors.OKCYAN, bcolors.RESET, bcolors.WARNING, bcolors.OKBLUE
+        record_types = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
+        res = resolver.Resolver()
+        res.timeout = 3
+        res.lifetime = 3
+        for rtype in record_types:
+            with suppress(Exception):
+                answers = res.resolve(domain, rtype)
+                for rdata in answers:
+                    print(f"  {C}{rtype:<8}{R} {B}{rdata.to_text()}{R}")
+
+
+# ── Cloudflare IP ranges (used for detection) ────────────────────────────
+# https://www.cloudflare.com/ips-v4/
+_CF_RANGES_V4 = [
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22",
+    "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18",
+    "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
+    "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+]
+_CF_NETWORKS = [ip_network(r) for r in _CF_RANGES_V4]
+
+
+def _is_cloudflare_ip(ip_str: str) -> bool:
+    """Return True if the IP belongs to a known Cloudflare range."""
+    with suppress(ValueError):
+        addr = ip_address(ip_str)
+        return any(addr in net for net in _CF_NETWORKS)
+    return False
+
+
+class CloudflareScanner:
+    \"\"\"Discover origin IPs behind Cloudflare via DNS enumeration.
+
+    Techniques:
+    1. Direct A/AAAA resolution — check if the apex is even on CF.
+    2. Common subdomain enumeration — many subdomains (mail, ftp, cpanel,
+       direct, etc.) are not proxied through CF and expose the origin.
+    3. MX record inspection — mail servers often point at the origin.
+    4. SPF/TXT record parsing — SPF includes may leak origin IPs.
+    5. NS record check — some self-hosted NS reveal origin.
+    \"\"\"
+
+    # Subdomains commonly left outside of CF proxy
+    PROBE_SUBDOMAINS = [
+        "direct", "origin", "mail", "webmail", "email", "smtp", "pop",
+        "pop3", "imap", "ftp", "cpanel", "whm", "webdisk", "autodiscover",
+        "autoconfig", "staging", "stage", "dev", "api", "m", "mobile",
+        "old", "legacy", "test", "admin", "panel", "cms", "blog",
+        "shop", "store", "vpn", "remote", "ssh", "ns1", "ns2",
+        "dns", "dns1", "dns2", "mx", "mx1", "mx2", "server",
+        "host", "gateway", "backend", "internal", "intranet",
+        "db", "database", "media", "static", "cdn", "assets",
+        "img", "images", "files", "download", "uploads",
+    ]
+
+    @staticmethod
+    def find_origin(domain: str) -> Dict[str, List[Tuple[str, str]]]:
+        \"\"\"Run all enumeration techniques and return categorized results.
+
+        Returns dict with keys: 'apex', 'subdomains', 'mx', 'spf'
+        Each value is a list of (source_label, ip) tuples.
+        \"\"\"
+        results: Dict[str, List[Tuple[str, str]]] = {
+            "apex": [],
+            "subdomains": [],
+            "mx": [],
+            "spf": [],
+        }
+        res = resolver.Resolver()
+        res.timeout = 3
+        res.lifetime = 3
+
+        # 1. Apex A records
+        with suppress(Exception):
+            for rdata in res.resolve(domain, "A"):
+                ip = rdata.to_text()
+                results["apex"].append((domain, ip))
+
+        # 2. MX records → resolve to IPs
+        with suppress(Exception):
+            for rdata in res.resolve(domain, "MX"):
+                mx_host = str(rdata.exchange).rstrip(".")
+                with suppress(Exception):
+                    mx_ip = gethostbyname(mx_host)
+                    results["mx"].append((mx_host, mx_ip))
+
+        # 3. SPF / TXT records → extract ip4: and include: directives
+        with suppress(Exception):
+            for rdata in res.resolve(domain, "TXT"):
+                txt = rdata.to_text().strip('"')
+                if "v=spf1" in txt.lower():
+                    for token in txt.split():
+                        if token.lower().startswith("ip4:"):
+                            ip_part = token[4:]
+                            # Could be a CIDR or single IP
+                            if "/" in ip_part:
+                                results["spf"].append(("SPF ip4 range", ip_part))
+                            else:
+                                results["spf"].append(("SPF ip4", ip_part))
+                        elif token.lower().startswith("include:"):
+                            inc_domain = token[8:]
+                            with suppress(Exception):
+                                inc_ip = gethostbyname(inc_domain)
+                                results["spf"].append((f"SPF include:{inc_domain}", inc_ip))
+
+        # 4. Subdomain enumeration (parallel)
+        def _probe_sub(sub: str):
+            fqdn = f"{sub}.{domain}"
+            with suppress(Exception):
+                ip = gethostbyname(fqdn)
+                if not _is_cloudflare_ip(ip):
+                    return (fqdn, ip)
+            return None
+
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            futures = {pool.submit(_probe_sub, s): s
+                       for s in CloudflareScanner.PROBE_SUBDOMAINS}
+            for fut in as_completed(futures):
+                result = fut.result()
+                if result:
+                    results["subdomains"].append(result)
+
+        return results
+
+    @staticmethod
+    def is_behind_cloudflare(domain: str) -> bool:
+        \"\"\"Quick check: does the domain's A record resolve to a CF IP?\"\"\"\n        with suppress(Exception):
+            ip = gethostbyname(domain)
+            return _is_cloudflare_ip(ip)
+        return False
+
+    @staticmethod
+    def print_results(domain: str, results: Dict[str, List[Tuple[str, str]]]):
+        \"\"\"Pretty-print CFIP scan results.\"\"\"\n        C, B, R, Y, G, F = (bcolors.OKCYAN, bcolors.OKBLUE, bcolors.RESET,
+                             bcolors.WARNING, bcolors.OKGREEN, bcolors.FAIL)
+        U = bcolors.BOLD
+
+        apex_ips = [ip for _, ip in results["apex"]]
+        on_cf = any(_is_cloudflare_ip(ip) for ip in apex_ips)
+
+        print(f\"\"\"
+{U}┌─── CFIP Results ─────────────────────────────────┐{R}
+{Y}│{R} Domain     : {B}{domain}{R}
+{Y}│{R} Apex IPs   : {C}{', '.join(apex_ips) or 'none'}{R}
+{Y}│{R} Cloudflare : {(F + 'YES' if on_cf else G + 'NO') + R}
+{Y}│{R}\"\"\")
+
+        # Non-CF IPs found
+        origin_candidates: Set[str] = set()
+
+        for category, label in [("subdomains", "Subdomain Enumeration"),
+                                ("mx", "MX Records"),
+                                ("spf", "SPF / TXT Records")]:
+            entries = results[category]
+            if entries:
+                print(f\"{Y}│{R} {U}{label}:{R}\")
+                for source, ip in entries:
+                    is_cf = _is_cloudflare_ip(ip)
+                    tag = f\"{F}[CF]{R}\" if is_cf else f\"{G}[ORIGIN?]{R}\"
+                    print(f\"{Y}│{R}   {C}{source:<40}{R} → {B}{ip:<16}{R} {tag}\")
+                    if not is_cf:
+                        origin_candidates.add(ip)
+                print(f\"{Y}│{R}\")
+
+        if origin_candidates:
+            print(f\"{Y}│{R} {U}{G}Candidate origin IPs:{R}\")
+            for ip in sorted(origin_candidates):
+                print(f\"{Y}│{R}   {G}{ip}{R}\")
+        elif on_cf:
+            print(f\"{Y}│{R} {F}No non-Cloudflare IPs found via enumeration.{R}\")
+            print(f\"{Y}│{R} {Y}Try historical DNS databases or certificate transparency logs.{R}\")
+        else:
+            print(f\"{Y}│{R} {G}Domain does not appear to be behind Cloudflare.{R}\")
+
+        print(f\"{U}└───────────────────────────────────────────────────┘{R}\")
