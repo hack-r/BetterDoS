@@ -1,6 +1,6 @@
 # BetterDoS v3.0
 
-**Network resilience testing framework — 47 attack methods, 12 commands.**
+**Network resilience reseaerch and testing framework — 47 attack methods, 12 commands.**
 
 All the methods and tools of MHDDoS, optimized, augmented, with corrected counts, Cloudflare detection and evasion, and improved docs/UI.
 

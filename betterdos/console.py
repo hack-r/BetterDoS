@@ -281,11 +281,11 @@ class CloudflareScanner:
 
     @staticmethod
     def find_origin(domain: str) -> Dict[str, List[Tuple[str, str]]]:
-        \"\"\"Run all enumeration techniques and return categorized results.
+        """Run all enumeration techniques and return categorized results.
 
         Returns dict with keys: 'apex', 'subdomains', 'mx', 'spf'
         Each value is a list of (source_label, ip) tuples.
-        \"\"\"
+        """
         results: Dict[str, List[Tuple[str, str]]] = {
             "apex": [],
             "subdomains": [],
@@ -350,7 +350,8 @@ class CloudflareScanner:
 
     @staticmethod
     def is_behind_cloudflare(domain: str) -> bool:
-        \"\"\"Quick check: does the domain's A record resolve to a CF IP?\"\"\"\n        with suppress(Exception):
+        """Quick check: does the domain's A record resolve to a CF IP?"""
+        with suppress(Exception):
             ip = gethostbyname(domain)
             return _is_cloudflare_ip(ip)
         return False
