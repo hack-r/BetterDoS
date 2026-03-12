@@ -4,14 +4,9 @@
 
 All the methods and tools of MHDDoS, automated, optimized, augmented, with corrected counts, Cloudflare detection and evasion, and improved docs/UI. Conducts a competition between methods to find ideal attack vectors for any site.
 
-## Screenshots
+## Screenshot
 
-<!-- Replace placeholder paths with actual screenshots -->
-| GUI — Attack Tab | GUI — Auto Tab | CLI — Auto Results |
-|:-:|:-:|:-:|
-| ![Attack Tab](docs/screenshots/gui-attack.png) | ![Auto Tab](docs/screenshots/gui-auto.png) | ![CLI Auto](docs/screenshots/cli-auto.png) |
-
-> To regenerate: run the tool, take a screenshot, and save to `docs/screenshots/`.
+![BetterDoS GUI](docs/screenshots/gui1.png)
 
 ## To Do
 
@@ -39,7 +34,7 @@ I am not a maintainer. After the initial improvements there will be no further u
 
 ## Quick Start
 
-**Requirements:** Python 3.9+
+**Requirements:** Python 3.11+ recommended (3.9+ minimum). Docker is **not** required — install dependencies directly and run.
 
 ```bash
 git clone <this-repo>
@@ -47,7 +42,7 @@ cd BetterDoS
 pip install -r requirements.txt
 ```
 
-**Docker:**
+**Optional — Docker** (if you prefer a containerized environment):
 
 ```bash
 docker compose build
@@ -56,9 +51,9 @@ docker compose run -it --entrypoint /bin/bash betterdos
 
 ---
 
-## GUI
+## GUI (Recommended)
 
-Launch the graphical interface:
+The easiest way to use BetterDoS. Launch from the project root:
 
 ```bash
 python3 -m betterdos.gui
@@ -66,18 +61,23 @@ python3 -m betterdos.gui
 
 The GUI has four tabs:
 
-- **Attack** — select method, target, threads, duration, proxy settings; start/stop with live PPS/BPS output
-- **Advise** — fingerprint a target and see recommended methods
-- **Auto** — benchmark all candidate methods and rank by throughput
-- **CFIP** — discover origin IPs behind Cloudflare
+| Tab | What it does |
+|---|---|
+| **Attack** | Select method, target, threads, duration, proxy settings. Start/stop with live PPS/BPS output. |
+| **Advise** | Fingerprint a target and see recommended methods — no attack traffic sent. |
+| **Auto** | Benchmark all candidate methods and rank by throughput. |
+| **CFIP** | Enter a domain — discovers origin IPs hidden behind Cloudflare. |
+
+All output streams into the built-in output pane. No terminal needed.
 
 ---
 
 ## CLI Usage
 
-```
+```bash
 python3 start.py HELP          # show full usage with all methods
 python3 start.py TOOLS         # interactive tools console
+python3 start.py TOOLS CFIP    # jump straight into the CFIP tool
 ```
 
 ### ADVISE — Discover What Works
@@ -160,14 +160,36 @@ python3 start.py NTP 1.2.3.4:80 100 120 reflectors.txt
 
 ---
 
-## Cloudflare Protection
+## Cloudflare: Built-in Bypass Methods vs. Infrastructure Detection
 
-BetterDoS includes **complete Cloudflare IP detection** covering all official IPv4 and IPv6 ranges:
+BetterDoS handles Cloudflare at **two distinct levels** — it's important to understand the difference:
 
-**Behaviour:**
-- **L4 attacks** against Cloudflare IPs are **automatically blocked** (both CLI and GUI). You'll see a clear message directing you to use the CFIP tool or switch to L7 methods.
-- **L7 attacks** show a warning but proceed, since L7 traffic goes through proxies and can bypass CF.
-- **ADVISE** detects Cloudflare by both HTTP headers and IP range, and recommends the CFIP tool.
+### 1. Bypass Methods (inherited from MHDDoS)
+
+These are **L7 attack methods** that attempt to push traffic through Cloudflare's reverse proxy:
+
+| Method | Strategy |
+|---|---|
+| **CFB** | Uses `cloudscraper` to solve Cloudflare's JS challenge, then floods with the obtained cookies/tokens. |
+| **CFBUAM** | Same approach but specifically targets "Under Attack Mode" — waits out the 5-second delay, then attacks. |
+| **BYPASS** | Generic anti-DDoS bypass that works against multiple providers including CF. |
+
+These methods send traffic *through* Cloudflare and try to overwhelm the origin anyway. They work, but Cloudflare's rate limiting and bot detection can throttle them.
+
+### 2. Infrastructure Detection (added by BetterDoS)
+
+This is a completely different approach — instead of punching through Cloudflare, **find the origin server's real IP and bypass Cloudflare entirely**:
+
+- **CFIP tool** — Probes subdomains (mail, ftp, cpanel, dev, etc.), MX records, and SPF/TXT entries to find IPs that aren't behind CF.
+- **IP range detection** — All 22 official Cloudflare CIDR ranges (15 IPv4 + 7 IPv6) are checked automatically.
+- **L4 blocking** — If the resolved IP belongs to Cloudflare, L4 attacks are **blocked** (both CLI and GUI) since L4 packets hit Cloudflare's edge, not the origin. You'll see a message directing you to use CFIP or switch to L7.
+- **L7 warning** — L7 attacks show a notice but proceed, since they go through proxies.
+- **ADVISE integration** — Detects CF by both HTTP headers and IP range, recommends the CFIP tool.
+
+**The recommended workflow for Cloudflare targets:**
+1. Run `ADVISE` or `AUTO` — the system detects CF automatically.
+2. Run `TOOLS CFIP fakeurl.com` — discover the origin IP.
+3. Attack the origin IP directly (L4) or use CFB/CFBUAM methods (L7) through the CF proxy.
 
 **Covered ranges (22 total — 15 IPv4 + 7 IPv6):**
 
@@ -252,17 +274,30 @@ BetterDoS includes **complete Cloudflare IP detection** covering all official IP
 
 ### Tools — 7 Commands
 
-Run with `python3 start.py TOOLS`:
+Tools are **reconnaissance utilities** — they don't send attack traffic. Run them three ways:
+
+```bash
+# 1. Interactive console (type tool names at the prompt)
+python3 start.py TOOLS
+
+# 2. Jump straight to a tool
+python3 start.py TOOLS CFIP
+
+# 3. One-shot with argument (no prompts)
+python3 start.py TOOLS CFIP fakeurl.com
+```
+
+Inside the interactive console, each tool prompts for a domain/IP. Type **BACK** to return to the main prompt, or **EXIT** to quit.
 
 | Tool | Description |
 |---|---|
-| INFO | Target information lookup |
-| CFIP | Find real IP behind Cloudflare |
-| DNS | DNS record lookup |
-| TSSRV | TeamSpeak SRV resolver |
-| PING | ICMP ping |
-| CHECK | HTTP status check |
-| DSTAT | Live bytes sent/received display |
+| CFIP | Find real IP behind Cloudflare (subdomain enum, MX, SPF parsing) |
+| DNS | DNS record lookup (A, AAAA, CNAME, MX, NS, TXT, SOA) |
+| INFO | IP/domain WHOIS-style info (country, city, ISP, org) |
+| CHECK | HTTP status check — is the target online? |
+| PING | ICMP ping (5 packets) |
+| TSSRV | TeamSpeak SRV record resolver |
+| DSTAT | Live network I/O + CPU/memory monitor (Ctrl-C to stop) |
 
 ### Utility Commands — 5
 

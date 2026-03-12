@@ -26,11 +26,35 @@ class ToolsConsole:
         return False
 
     @staticmethod
-    def runConsole():
-        cons = f"{gethostname()}@BetterDoS:~#"
+    def runConsole(initial_args=None):
+        """Launch the interactive tools console.
+
+        Args:
+            initial_args: Optional list like ["CFIP", "example.com"] to run
+                          a single tool directly and then exit.
+        """
+        cons = "tools> "
+
+        # If called with arguments (e.g. start.py TOOLS CFIP example.com),
+        # run that single command and return instead of looping.
+        if initial_args:
+            cmd = initial_args[0].upper()
+            args = " ".join(initial_args[1:]) if len(initial_args) > 1 else ""
+            if cmd in ToolsConsole.METHODS:
+                ToolsConsole._run_tool(cmd, args)
+            else:
+                print(f"Unknown tool: {cmd}")
+                print("Available: " + ", ".join(sorted(ToolsConsole.METHODS)))
+            return
+
+        print("BetterDoS Tools Console")
+        print("  Available tools: " + ", ".join(sorted(ToolsConsole.METHODS)))
+        print("  Type a tool name, or TOOL <domain/ip> to run directly.")
+        print("  Type HELP, CLEAR, or EXIT.")
+        print()
 
         while 1:
-            cmd = input(cons + " ").strip()
+            cmd = input(cons).strip()
             if not cmd:
                 continue
             args = ""
@@ -39,19 +63,20 @@ class ToolsConsole:
 
             cmd = cmd.upper()
             if cmd == "HELP":
-                print("Tools: " + ", ".join(sorted(ToolsConsole.METHODS)))
-                print("Commands: HELP, CLEAR, BACK, EXIT")
+                print("Available tools: " + ", ".join(sorted(ToolsConsole.METHODS)))
+                print("Usage: <TOOL> [domain/ip]  — e.g. CFIP example.com")
+                print("Commands: HELP, CLEAR, EXIT")
                 continue
 
-            if {cmd} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
-                exit(-1)
+            if {cmd} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE", "BACK"}:
+                return
 
             if cmd == "CLEAR":
                 print("\033c")
                 continue
 
-            if not {cmd} & ToolsConsole.METHODS:
-                print(f"{cmd} command not found")
+            if cmd not in ToolsConsole.METHODS:
+                print(f"{cmd}: not found. Type HELP to list tools.")
                 continue
 
             if cmd == "DSTAT":
@@ -78,85 +103,111 @@ class ToolsConsole:
                              t[4], t[5], t[6], t[7], str(cpu_percent()) + "%",
                              str(virtual_memory().percent) + "%"))
 
-            if cmd == "CFIP":
-                while True:
-                    domain = input(f'{cons}give-me-domain# ')
-                    if not domain:
-                        continue
-                    if domain.upper() == "BACK":
-                        break
-                    if domain.upper() == "CLEAR":
-                        print("\033c")
-                        continue
-                    if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
-                        exit(-1)
-                    domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain:
-                        domain = domain.split("/")[0]
-                    logger.info("Scanning for origin IP behind Cloudflare ...")
-                    results = CloudflareScanner.find_origin(domain)
-                    CloudflareScanner.print_results(domain, results)
+            ToolsConsole._run_tool(cmd, args)
 
-            if cmd == "DNS":
-                while True:
-                    domain = input(f'{cons}give-me-domain# ')
-                    if not domain:
-                        continue
-                    if domain.upper() == "BACK":
-                        break
-                    if domain.upper() == "CLEAR":
-                        print("\033c")
-                        continue
-                    if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
-                        exit(-1)
-                    domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain:
-                        domain = domain.split("/")[0]
-                    logger.info("Querying DNS records ...")
-                    ToolsConsole.dns_lookup(domain)
+    @staticmethod
+    def _run_tool(cmd, args=""):
+        """Execute a single tool command. If *args* is provided, run once;
+        otherwise enter an interactive loop for that tool."""
 
-            if cmd == "CHECK":
-                while True:
-                    with suppress(Exception):
-                        domain = input(f'{cons}give-me-ipaddress# ')
-                        if not domain:
-                            continue
-                        if domain.upper() == "BACK":
-                            break
-                        if domain.upper() == "CLEAR":
-                            print("\033c")
-                            continue
-                        if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
-                            exit(-1)
-                        if "/" not in domain:
-                            continue
-                        logger.info("please wait ...")
-                        with get(domain, timeout=20) as r:
-                            logger.info(('status_code: %d\n'
-                                         'status: %s') %
-                                        (r.status_code, "ONLINE"
-                                        if r.status_code <= 500 else "OFFLINE"))
+        def _get_input(prompt):
+            """Read from the interactive sub-prompt, handling BACK/EXIT."""
+            while True:
+                val = input(prompt).strip()
+                if not val:
+                    continue
+                if val.upper() in {"BACK", "B"}:
+                    return None
+                if val.upper() in {"E", "EXIT", "Q", "QUIT"}:
+                    return None
+                if val.upper() == "CLEAR":
+                    print("\033c")
+                    continue
+                return val
 
-            if cmd == "INFO":
+        def _clean_domain(d):
+            d = d.replace('https://', '').replace('http://', '')
+            if '/' in d:
+                d = d.split('/')[0]
+            return d
+
+        if cmd == "DSTAT":
+            with suppress(KeyboardInterrupt):
+                ld = net_io_counters(pernic=False)
                 while True:
-                    domain = input(f'{cons}give-me-ipaddress# ')
-                    if not domain:
-                        continue
-                    if domain.upper() == "BACK":
-                        break
-                    if domain.upper() == "CLEAR":
-                        print("\033c")
-                        continue
-                    if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
-                        exit(-1)
-                    domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain:
-                        domain = domain.split("/")[0]
-                    print('please wait ...', end="\r")
-                    info = ToolsConsole.info(domain)
-                    if not info["success"]:
-                        print("Error!")
-                        continue
+                    sleep(1)
+                    od = ld
+                    ld = net_io_counters(pernic=False)
+                    t = [(last - now) for now, last in zip(od, ld)]
+                    logger.info(
+                        ("Bytes Sent %s\n"
+                         "Bytes Received %s\n"
+                         "Packets Sent %s\n"
+                         "Packets Received %s\n"
+                         "ErrIn %s\n"
+                         "ErrOut %s\n"
+                         "DropIn %s\n"
+                         "DropOut %s\n"
+                         "Cpu Usage %s\n"
+                         "Memory %s\n") %
+                        (Tools.humanbytes(t[0]), Tools.humanbytes(t[1]),
+                         Tools.humanformat(t[2]), Tools.humanformat(t[3]),
+                         t[4], t[5], t[6], t[7], str(cpu_percent()) + "%",
+                         str(virtual_memory().percent) + "%"))
+            return
+
+        if cmd == "CFIP":
+            targets = [_clean_domain(args)] if args else []
+            while True:
+                domain = targets.pop(0) if targets else _get_input("cfip> domain: ")
+                if domain is None:
+                    break
+                domain = _clean_domain(domain)
+                logger.info("Scanning for origin IP behind Cloudflare ...")
+                results = CloudflareScanner.find_origin(domain)
+                CloudflareScanner.print_results(domain, results)
+                if args:
+                    break
+
+        elif cmd == "DNS":
+            targets = [_clean_domain(args)] if args else []
+            while True:
+                domain = targets.pop(0) if targets else _get_input("dns> domain: ")
+                if domain is None:
+                    break
+                domain = _clean_domain(domain)
+                logger.info("Querying DNS records ...")
+                ToolsConsole.dns_lookup(domain)
+                if args:
+                    break
+
+        elif cmd == "CHECK":
+            targets = [args] if args else []
+            while True:
+                url = targets.pop(0) if targets else _get_input("check> url: ")
+                if url is None:
+                    break
+                with suppress(Exception):
+                    if '/' not in url:
+                        url = 'http://' + url
+                    with get(url, timeout=20) as r:
+                        status = "ONLINE" if r.status_code <= 500 else "OFFLINE"
+                        logger.info(f"status_code: {r.status_code}\nstatus: {status}")
+                if args:
+                    break
+
+        elif cmd == "INFO":
+            targets = [_clean_domain(args)] if args else []
+            while True:
+                domain = targets.pop(0) if targets else _get_input("info> ip/domain: ")
+                if domain is None:
+                    break
+                domain = _clean_domain(domain)
+                print('please wait ...', end="\r")
+                info = ToolsConsole.info(domain)
+                if not info["success"]:
+                    print("Error!")
+                else:
                     logger.info(("Country: %s\n"
                                  "City: %s\n"
                                  "Org: %s\n"
@@ -164,50 +215,41 @@ class ToolsConsole:
                                  "Region: %s\n") %
                                 (info["country"], info["city"], info["org"],
                                  info["isp"], info["region"]))
+                if args:
+                    break
 
-            if cmd == "TSSRV":
-                while True:
-                    domain = input(f'{cons}give-me-domain# ')
-                    if not domain:
-                        continue
-                    if domain.upper() == "BACK":
-                        break
-                    if domain.upper() == "CLEAR":
-                        print("\033c")
-                        continue
-                    if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
-                        exit(-1)
-                    domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain:
-                        domain = domain.split("/")[0]
-                    print('please wait ...', end="\r")
-                    info = ToolsConsole.ts_srv(domain)
-                    logger.info(f"TCP: {(info['_tsdns._tcp.'])}\n")
-                    logger.info(f"UDP: {(info['_ts3._udp.'])}\n")
+        elif cmd == "TSSRV":
+            targets = [_clean_domain(args)] if args else []
+            while True:
+                domain = targets.pop(0) if targets else _get_input("tssrv> domain: ")
+                if domain is None:
+                    break
+                domain = _clean_domain(domain)
+                print('please wait ...', end="\r")
+                info = ToolsConsole.ts_srv(domain)
+                logger.info(f"TCP: {(info['_tsdns._tcp.'])}\n")
+                logger.info(f"UDP: {(info['_ts3._udp.'])}\n")
+                if args:
+                    break
 
-            if cmd == "PING":
-                while True:
-                    domain = input(f'{cons}give-me-ipaddress# ')
-                    if not domain:
-                        continue
-                    if domain.upper() == "BACK":
-                        break
-                    if domain.upper() == "CLEAR":
-                        print("\033c")
-                    if {domain.upper()} & {"E", "EXIT", "Q", "QUIT", "LOGOUT", "CLOSE"}:
-                        exit(-1)
-                    domain = domain.replace('https://', '').replace('http://', '')
-                    if "/" in domain:
-                        domain = domain.split("/")[0]
-                    logger.info("please wait ...")
-                    r = ping(domain, count=5, interval=0.2)
-                    logger.info(('Address: %s\n'
-                                 'Ping: %d\n'
-                                 'Aceepted Packets: %d/%d\n'
-                                 'status: %s\n') %
-                                (r.address, r.avg_rtt, r.packets_received,
-                                 r.packets_sent,
-                                 "ONLINE" if r.is_alive else "OFFLINE"))
+        elif cmd == "PING":
+            targets = [_clean_domain(args)] if args else []
+            while True:
+                domain = targets.pop(0) if targets else _get_input("ping> ip/domain: ")
+                if domain is None:
+                    break
+                domain = _clean_domain(domain)
+                logger.info("please wait ...")
+                r = ping(domain, count=5, interval=0.2)
+                logger.info(('Address: %s\n'
+                             'Ping: %d\n'
+                             'Accepted Packets: %d/%d\n'
+                             'status: %s\n') %
+                            (r.address, r.avg_rtt, r.packets_received,
+                             r.packets_sent,
+                             "ONLINE" if r.is_alive else "OFFLINE"))
+                if args:
+                    break
 
     @staticmethod
     def stop():

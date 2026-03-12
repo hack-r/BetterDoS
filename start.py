@@ -36,7 +36,8 @@ def main():
             if one == "HELP":
                 raise IndexError()
             if one == "TOOLS":
-                ToolsConsole.runConsole()
+                tool_args = argv[2:] if len(argv) > 2 else []
+                ToolsConsole.runConsole(tool_args)
             if one == "STOP":
                 ToolsConsole.stop()
 

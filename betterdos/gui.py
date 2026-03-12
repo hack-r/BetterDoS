@@ -146,17 +146,24 @@ class BetterDoSGUI:
         # Method
         ttk.Label(f, text="Method *").pack(anchor="w", pady=(0, 2))
         method_frame = ttk.Frame(f)
-        method_frame.pack(fill="x", pady=(0, 4))
+        method_frame.pack(fill="x", pady=(0, 2))
 
-        all_methods = sorted(Methods.LAYER7_METHODS) + sorted(Methods.LAYER4_METHODS)
-        self.method_var = tk.StringVar(value="GET")
+        # Build display list with [L7]/[L4] prefixes
+        l7_items = [f"[L7] {m}" for m in sorted(Methods.LAYER7_METHODS)]
+        l4_items = [f"[L4] {m}" for m in sorted(Methods.LAYER4_METHODS)]
+        all_display = l7_items + l4_items
+        self.method_var = tk.StringVar(value="[L7] GET")
         self.method_combo = ttk.Combobox(method_frame, textvariable=self.method_var,
-                                          values=all_methods, state="readonly", width=16)
+                                          values=all_display, state="readonly", width=20)
         self.method_combo.pack(side="left")
         self.method_desc = ttk.Label(method_frame, text="", foreground=FG_DIM,
-                                      font=("Segoe UI", 9))
+                                      font=("Segoe UI", 9), wraplength=260)
         self.method_desc.pack(side="left", padx=(8, 0))
         self.method_combo.bind("<<ComboboxSelected>>", self._on_method_change)
+
+        # Layer hint
+        self.layer_hint = ttk.Label(f, text="", foreground=FG_DIM, font=("Segoe UI", 8))
+        self.layer_hint.pack(anchor="w", pady=(0, 4))
         self._on_method_change()
 
         # Threads
@@ -288,10 +295,25 @@ class BetterDoSGUI:
 
     # ── Event handlers ───────────────────────────────────────────────────
 
+    def _get_raw_method(self) -> str:
+        """Strip the [L7]/[L4] prefix from the combo value."""
+        val = self.method_var.get()
+        if val.startswith("["):
+            return val.split("] ", 1)[-1]
+        return val
+
     def _on_method_change(self, event=None):
-        m = self.method_var.get()
+        m = self._get_raw_method()
         desc = L7_DESCRIPTIONS.get(m) or L4_DESCRIPTIONS.get(m, "")
         self.method_desc.configure(text=desc)
+        if m in Methods.LAYER7_METHODS:
+            self.layer_hint.configure(
+                text="L7 = HTTP layer. Target by URL/domain. Requires proxies.")
+        elif m in Methods.LAYER4_METHODS:
+            self.layer_hint.configure(
+                text="L4 = Transport layer. Target by IP:port. Raw packets, no proxy needed.")
+        else:
+            self.layer_hint.configure(text="")
 
     def _browse_proxy(self):
         p = filedialog.askopenfilename(
@@ -393,6 +415,7 @@ class BetterDoSGUI:
         if not method:
             messagebox.showwarning("Missing Field", "Select an attack method.")
             return
+        method = self._get_raw_method()
 
         self._clear_output()
         self.start_btn.configure(state="disabled")
@@ -426,9 +449,18 @@ class BetterDoSGUI:
         sys.stderr = OutputCapture(self.output, "stderr")
 
         try:
-            urlraw = target_raw.strip()
-            if not urlraw.startswith("http"):
+            urlraw = target_raw.strip().rstrip("/")
+
+            # Normalise: accept bare domains, ip:port, or full URLs
+            if "://" not in urlraw:
+                # Bare domain or ip:port — default to http
                 urlraw = "http://" + urlraw
+
+            url = URL(urlraw)
+            if not url.host:
+                print("Error: Could not parse a hostname from the target. "
+                      "Enter a domain (e.g. fakeurl.com) or ip:port (e.g. 1.2.3.4:80).")
+                return
 
             threads = int(self.threads_var.get())
             timer = int(self.duration_var.get())
@@ -440,7 +472,6 @@ class BetterDoSGUI:
             self._attack_event = event
 
             if method in Methods.LAYER7_METHODS:
-                url = URL(urlraw)
                 host = url.host
                 if method != "TOR":
                     try:
@@ -474,13 +505,12 @@ class BetterDoSGUI:
                 port_display = url.port or 80
 
             elif method in Methods.LAYER4_METHODS:
-                target_url = URL(urlraw)
-                port = target_url.port
-                target_host = target_url.host
+                port = url.port
+                target_host = url.host
                 try:
                     target_host = gethostbyname(target_host)
                 except Exception as e:
-                    print(f"Error: Cannot resolve hostname {target_url.host}: {e}")
+                    print(f"Error: Cannot resolve hostname {url.host}: {e}")
                     return
 
                 if not port:
