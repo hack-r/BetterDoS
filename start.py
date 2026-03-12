@@ -18,7 +18,7 @@ from yarl import URL
 from betterdos.core import (BYTES_SEND, REQUESTS_SENT, ROOT_DIR, Methods, Tools,
                             bcolors, con, exit, logger, RUN_ID)
 from betterdos.advisor import MethodAdvisor
-from betterdos.console import ToolsConsole
+from betterdos.console import ToolsConsole, _is_cloudflare_ip
 from betterdos.layer4 import Layer4
 from betterdos.layer7 import HttpFlood, BOMBARDIER_PATH
 from betterdos.minecraft import Minecraft
@@ -133,6 +133,12 @@ def main():
                     target = gethostbyname(target)
                 except Exception as e:
                     exit('Cannot resolve hostname ', target, str(e))
+
+                if _is_cloudflare_ip(target):
+                    exit(f"BLOCKED: {target} is a Cloudflare IP.\n"
+                         f"  L4 attacks against Cloudflare IPs are ineffective "
+                         f"and wasteful.\n  Use 'TOOLS' → CFIP to discover the "
+                         f"origin IP, or use L7 methods instead.")
 
                 if port > 65535 or port < 1:
                     exit("Invalid Port [Min: 1 / Max: 65535] ")

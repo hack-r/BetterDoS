@@ -80,7 +80,7 @@ def banner():
 {bcolors.OKCYAN}╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
 ║   {bcolors.BOLD}BetterDoS{bcolors.RESET}{bcolors.OKCYAN}  ·  Network Resilience Testing Framework          ║
-║   v3.0  ·  {n_methods} attack methods  ·  7 tools  ·  5 commands     ║
+║   {n_methods} attack methods  ·  7 tools  ·  5 commands                  ║
 ║                                                              ║
 ║   {bcolors.RESET}{bcolors.WARNING}Research use only — authorized targets in lab environments{bcolors.RESET}{bcolors.OKCYAN}  ║
 ╚══════════════════════════════════════════════════════════════╝{bcolors.RESET}

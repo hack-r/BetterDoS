@@ -1,13 +1,21 @@
 # BetterDoS
 
-**Network resilience reseaerch and testing framework — 47 attack methods, 12 commands.**
+**Network resilience research and testing framework — 47 attack methods, 12 commands, GUI + CLI.**
 
 All the methods and tools of MHDDoS, automated, optimized, augmented, with corrected counts, Cloudflare detection and evasion, and improved docs/UI. Conducts a competition between methods to find ideal attack vectors for any site.
+
+## Screenshots
+
+<!-- Replace placeholder paths with actual screenshots -->
+| GUI — Attack Tab | GUI — Auto Tab | CLI — Auto Results |
+|:-:|:-:|:-:|
+| ![Attack Tab](docs/screenshots/gui-attack.png) | ![Auto Tab](docs/screenshots/gui-auto.png) | ![CLI Auto](docs/screenshots/cli-auto.png) |
+
+> To regenerate: run the tool, take a screenshot, and save to `docs/screenshots/`.
 
 ## To Do
 
   - Give the project actual DDoS (not just DoS) via swarm management over SSH.
-  - GUI frontend.
 
 ## Important Note
 
@@ -17,8 +25,11 @@ I am not a maintainer. After the initial improvements there will be no further u
 
 | Feature | Description |
 |---|---|
+| **GUI** | Tkinter desktop interface — tabbed Attack / Advise / Auto / CFIP modes, live output pane |
 | **ADVISE** | Fingerprints a target (HTTP headers, ports, CDN detection) and recommends the best attack methods |
 | **AUTO** | Probes every candidate method with bounded trials, ranks results by PPS/BPS, recommends the winner |
+| **Cloudflare Protection** | Full IPv4 + IPv6 range detection; L4 attacks against CF IPs are automatically blocked |
+| **CFIP Tool** | Discovers origin IPs behind Cloudflare via subdomain enumeration, MX, and SPF/TXT parsing |
 | **Modular Architecture** | Monolithic 2100-line script split into 9 focused modules under `betterdos/` |
 | **Pretty Output** | Unicode box-drawing tables, color-coded results, live progress bar with PPS/BPS counters |
 | **Run Tracking** | Every session gets a unique `RUN_ID`; optional `MHD_LOG_FILE` and `MHD_DEBUG` env vars |
@@ -45,7 +56,24 @@ docker compose run -it --entrypoint /bin/bash betterdos
 
 ---
 
-## Usage
+## GUI
+
+Launch the graphical interface:
+
+```bash
+python3 -m betterdos.gui
+```
+
+The GUI has four tabs:
+
+- **Attack** — select method, target, threads, duration, proxy settings; start/stop with live PPS/BPS output
+- **Advise** — fingerprint a target and see recommended methods
+- **Auto** — benchmark all candidate methods and rank by throughput
+- **CFIP** — discover origin IPs behind Cloudflare
+
+---
+
+## CLI Usage
 
 ```
 python3 start.py HELP          # show full usage with all methods
@@ -57,12 +85,12 @@ python3 start.py TOOLS         # interactive tools console
 Fingerprints the target and recommends candidate methods without sending attack traffic:
 
 ```
-python3 start.py ADVISE https://example.com
+python3 start.py ADVISE https://fakeurl.com
 ```
 
 ```
 ┌─── ADVISE Results ────────────────────────────┐
-│ Target   : example.com:443
+│ Target   : fakeurl.com:443
 │ TCP      : open
 │ HTTP     : 200
 │
@@ -83,7 +111,7 @@ python3 start.py ADVISE https://example.com
 Probes each candidate with bounded traffic, measures PPS/BPS, ranks results:
 
 ```
-python3 start.py AUTO https://example.com 50 10 100 1 proxies.txt
+python3 start.py AUTO https://fakeurl.com 50 10 100 1 proxies.txt
 #                      threads  probe_sec rpc socks_type proxy_file
 ```
 
@@ -106,7 +134,7 @@ RECOMMENDATION: Use method GET (L7) — highest throughput at 1.2K pps / 4.8 MB
 
 ```
 python3 start.py <method> <url> <socks_type> <threads> <proxy_file> <rpc> <duration>
-python3 start.py GET https://example.com 1 100 proxies.txt 100 120
+python3 start.py GET https://fakeurl.com 1 100 proxies.txt 100 120
 ```
 
 ### Layer 4 Attack
@@ -129,6 +157,37 @@ python3 start.py NTP 1.2.3.4:80 100 120 reflectors.txt
 ```
 
 **Proxy types:** `0` = all from config, `1` = HTTP, `4` = SOCKS4, `5` = SOCKS5, `6` = random
+
+---
+
+## Cloudflare Protection
+
+BetterDoS includes **complete Cloudflare IP detection** covering all official IPv4 and IPv6 ranges:
+
+**Behaviour:**
+- **L4 attacks** against Cloudflare IPs are **automatically blocked** (both CLI and GUI). You'll see a clear message directing you to use the CFIP tool or switch to L7 methods.
+- **L7 attacks** show a warning but proceed, since L7 traffic goes through proxies and can bypass CF.
+- **ADVISE** detects Cloudflare by both HTTP headers and IP range, and recommends the CFIP tool.
+
+**Covered ranges (22 total — 15 IPv4 + 7 IPv6):**
+
+| IPv4 | IPv6 |
+|---|---|
+| 173.245.48.0/20 | 2400:cb00::/32 |
+| 103.21.244.0/22 | 2606:4700::/32 |
+| 103.22.200.0/22 | 2803:f800::/32 |
+| 103.31.4.0/22 | 2405:b500::/32 |
+| 141.101.64.0/18 | 2405:8100::/32 |
+| 108.162.192.0/18 | 2a06:98c0::/29 |
+| 190.93.240.0/20 | 2c0f:f248::/32 |
+| 188.114.96.0/20 | |
+| 197.234.240.0/22 | |
+| 198.41.128.0/17 | |
+| 162.158.0.0/15 | |
+| 104.16.0.0/13 | |
+| 104.24.0.0/14 | |
+| 172.64.0.0/13 | |
+| 131.0.72.0/22 | |
 
 ---
 
@@ -221,15 +280,16 @@ Run with `python3 start.py TOOLS`:
 
 ```
 betterdos/
-├── __init__.py       # Package marker (v3.0)
+├── __init__.py       # Package marker
 ├── core.py           # Shared state, constants, Methods registry, Tools utilities
 ├── layer7.py         # HttpFlood (26 methods) — Thread subclass
 ├── layer4.py         # Layer4 (21 methods) — Thread subclass
 ├── advisor.py        # MethodAdvisor — ADVISE and AUTO logic
 ├── proxy.py          # ProxyManager — download, check, load
-├── console.py        # ToolsConsole — interactive tools REPL
+├── console.py        # ToolsConsole — interactive tools REPL + CloudflareScanner
 ├── minecraft.py      # Minecraft protocol helpers
-└── output.py         # Pretty output — banner, tables, progress bars
+├── output.py         # Pretty output — banner, tables, progress bars
+└── gui.py            # Tkinter desktop GUI
 start.py              # Thin CLI entrypoint
 config.json           # MCBOT prefix, protocol version, proxy providers
 ```
